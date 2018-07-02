@@ -28,8 +28,16 @@
 //   Allows easy selection of serial port for bluetooth module.
 //   SerialCommands is available from Arduino library.
 //   Ebony 2018-07-05
+//
+// Use PWM module to control servos instead of discrete pins.
+//   Use Adafruit_PWMServoDriver module and PWM hardware (PCA9685) to control
+//   servos instead of Servo module and discrete pins.
+//   CliveHobson 2018-07-02
 
 /* Includes ------------------------------------------------------------------*/
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+
 #include <Servo.h>    //to define and control servos
 #include <FlexiTimer2.h>//to set a timer to manage all servos
 // RegisHsu, remote control
@@ -41,10 +49,16 @@ char serial_command_buffer_[32];
 SerialCommands SCmd(&Serial1, serial_command_buffer_, sizeof(serial_command_buffer_), "\r\n", " ");
 
 /* Servos --------------------------------------------------------------------*/
+#define SERVO_VIA_PWM 1
 //define 12 servos for 4 legs
+#if SERVO_VIA_PWM
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+const int servo_address[4][3] = { {0, 1, 2}, {4, 5, 6}, {8, 9, 10}, {12, 13, 14} };
+#else
 Servo servo[4][3];
 //define servos' ports
 const int servo_pin[4][3] = { {2, 3, 4}, {5, 6, 7}, {8, 9, 10}, {11, 12, 13} };
+#endif
 /* Size of the robot ---------------------------------------------------------*/
 const float length_a = 55;
 const float length_b = 77.5;
@@ -204,6 +218,11 @@ void setup()
 
 void servo_attach(void)
 {
+#if SERVO_VIA_PWM
+  pwm.begin();
+  pwm.setPWMFreq(50);
+  Wire.setClock(400000);
+#else
   for (int i = 0; i < 4; i++)
   {
     for (int j = 0; j < 3; j++)
@@ -212,10 +231,14 @@ void servo_attach(void)
       delay(100);
     }
   }
+#endif
 }
 
 void servo_detach(void)
 {
+#if SERVO_VIA_PWM
+  pwm.reset();
+#else
   for (int i = 0; i < 4; i++)
   {
     for (int j = 0; j < 3; j++)
@@ -224,6 +247,7 @@ void servo_detach(void)
       delay(100);
     }
   }
+#endif
 }
 /*
   - loop function
@@ -847,6 +871,15 @@ void cartesian_to_polar(volatile float &alpha, volatile float &beta, volatile fl
 }
 
 /*
+  - convert polar (degrees) to PWM "on" time
+   ---------------------------------------------------------------------------*/
+uint16_t polar_to_pwm(float angle)
+{
+  // multiply by 10 to get better precision
+  return map(static_cast<uint16_t>(angle) * 10, 0, 1800, 103, 512);
+}
+
+/*
   - trans site from polar to microservos
   - mathematical model map to fact
   - the errors saved in eeprom will be add
@@ -878,7 +911,13 @@ void polar_to_servo(int leg, float alpha, float beta, float gamma)
     gamma += 90;
   }
 
+#if SERVO_VIA_PWM
+  pwm.setPWM(servo_address[leg][0], 0, polar_to_pwm(alpha));
+  pwm.setPWM(servo_address[leg][1], 0, polar_to_pwm(beta));
+  pwm.setPWM(servo_address[leg][2], 0, polar_to_pwm(gamma));
+#else
   servo[leg][0].write(alpha);
   servo[leg][1].write(beta);
   servo[leg][2].write(gamma);
+#endif
 }
