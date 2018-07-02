@@ -82,8 +82,18 @@ const float turn_y1 = y_start + y_step / 2;
 const float turn_x0 = turn_x1 - temp_b * cos(temp_alpha);
 const float turn_y0 = temp_b * sin(temp_alpha) - turn_y1 - length_side;
 
-// pin-A0
-#define IR_Detect_IO 14
+/* Constants for obsticle detection with Infrared or Ultrasonic --------------*/
+// Select detection device
+const int IR = 0; // Infrared
+const int US = 1; // Ultrasonic
+const int Detect_Device = 1;
+// Infrared I/O pin
+const int IR_Detect_IO = 14;
+// Untrasonic Trigger / Echo pins
+const int Sonic_Detect_Trig = 14;
+const int Sonic_Detect_Echo = 15;
+// Ultrasonic distance in Centimetres
+const int Sonic_Detect_Range = 15;
 
 // RegisHsu, remote control
 // w 0 1: stand
@@ -173,9 +183,20 @@ void setup()
   //Bluetooth default baud is 9600
   Serial1.begin(9600);
   CmdSerial.println("Robot starts initialization");
-  // config IR_Detect_IO pin as input
-  pinMode(IR_Detect_IO, INPUT);
-  
+
+  // Initialise Detection Device
+  if (Detect_Device == IR)
+  {
+    // config IR_Detect_IO pin as input
+    pinMode(IR_Detect_IO, INPUT);
+  }
+  else if (Detect_Device == US)
+  {
+    // config Ultrasonic pins
+    pinMode(Sonic_Detect_Trig, OUTPUT);
+    pinMode(Sonic_Detect_Echo, INPUT);
+  }
+    
   SCmd.SetDefaultHandler(cmd_unrecognized);
   SCmd.AddCommand(&cmd_action_);
 
@@ -228,6 +249,7 @@ void servo_detach(void)
 /*
   - loop function
    ---------------------------------------------------------------------------*/
+long duration, cm;
 int flag_obstacle = 0;
 int mode_left_right = 0;
 void loop()
@@ -235,7 +257,35 @@ void loop()
   int tmp_turn, tmp_leg, tmp_body;
   //Regis, 2015-07-15, for Bluetooth command
   SCmd.ReadSerial();
-  if (!digitalRead(IR_Detect_IO) && is_stand())
+
+  bool Obstacle = false;
+  if (Detect_Device == IR)
+  {
+    Obstacle = !digitalRead(IR_Detect_IO);
+  }
+  else if (Detect_Device == US)
+  {
+    // The sensor is triggered by a HIGH pulse of 10 or more microseconds.
+    // Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
+    digitalWrite(Sonic_Detect_Trig, LOW);
+    delayMicroseconds(5);
+    digitalWrite(Sonic_Detect_Trig, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(Sonic_Detect_Trig, LOW);
+ 
+    // Read the signal from the sensor: a HIGH pulse whose
+    // duration is the time (in microseconds) from the sending
+    // of the ping to the reception of its echo off of an object.
+    pinMode(Sonic_Detect_Echo, INPUT);
+    duration = pulseIn(Sonic_Detect_Echo, HIGH);
+
+    // convert the time into a distance
+    cm = (duration/2) / 29.1;
+
+    Obstacle = cm > 0 && cm <= Sonic_Detect_Range;
+  }
+  
+  if (Obstacle && is_stand())
   {
     tmp_turn = spot_turn_speed;
     tmp_leg = leg_move_speed;
