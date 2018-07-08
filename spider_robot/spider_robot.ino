@@ -23,14 +23,22 @@
 
 // modified by Regis for spider project, 2015-09-26
 // add remote control by HC-06 bluetooth module
-
+//
+// Use SerialCommands instead of SerialCommand.
+//   Allows easy selection of serial port for bluetooth module.
+//   SerialCommands is available from Arduino library.
+//   Ebony 2018-07-05
 
 /* Includes ------------------------------------------------------------------*/
 #include <Servo.h>    //to define and control servos
 #include <FlexiTimer2.h>//to set a timer to manage all servos
 // RegisHsu, remote control
-#include <SerialCommand.h>
-SerialCommand SCmd;   // The demo SerialCommand object
+#include <SerialCommands.h>
+
+/* Serial Commands------------------------------------------------------------*/
+Stream & CmdSerial = Serial1;
+char serial_command_buffer_[32];
+SerialCommands SCmd(&Serial1, serial_command_buffer_, sizeof(serial_command_buffer_), "\r\n", " ");
 
 /* Servos --------------------------------------------------------------------*/
 //define 12 servos for 4 legs
@@ -77,6 +85,83 @@ const float turn_y0 = temp_b * sin(temp_alpha) - turn_y1 - length_side;
 // pin-A0
 #define IR_Detect_IO 14
 
+// RegisHsu, remote control
+// w 0 1: stand
+// w 0 0: sit
+// w 1 x: forward x step
+// w 2 x: back x step
+// w 3 x: right turn x step
+// w 4 x: left turn x step
+// w 5 x: hand shake x times
+// w 6 x: hand wave x times
+#define W_STAND_SIT    0
+#define W_FORWARD      1
+#define W_BACKWARD     2
+#define W_LEFT         3
+#define W_RIGHT        4
+#define W_SHAKE        5
+#define W_WAVE         6
+void cmd_action(SerialCommands* sender)
+{
+  char *arg;
+  int action_mode, n_step;
+  arg = sender->Next();
+  action_mode = atoi(arg);
+  arg = sender->Next();
+  n_step = atoi(arg);
+
+ sender->GetSerial()->println("Action:");
+ 
+  switch (action_mode)
+  {
+    case W_FORWARD:
+      sender->GetSerial()->println("Step forward");
+      if (!is_stand())
+        stand();
+      step_forward(n_step);
+      break;
+    case W_BACKWARD:
+      sender->GetSerial()->println("Step back");
+      if (!is_stand())
+        stand();
+      step_back(n_step);
+      break;
+    case W_LEFT:
+      sender->GetSerial()->println("Turn left");
+      if (!is_stand())
+        stand();
+      turn_left(n_step);
+      break;
+    case W_RIGHT:
+      sender->GetSerial()->println("Turn right");
+      if (!is_stand())
+        stand();
+      turn_right(n_step);
+      break;
+    case W_STAND_SIT:
+      sender->GetSerial()->println("1:up,0:dn");
+      if (n_step)
+        stand();
+      else
+        sit();
+      break;
+    case W_SHAKE:
+      sender->GetSerial()->println("Hand shake");
+      hand_shake(n_step);
+      break;
+    case W_WAVE:
+      sender->GetSerial()->println("Hand wave");
+      hand_wave(n_step);
+      break;
+    default:
+      sender->GetSerial()->println("Error");
+      break;
+  }
+}
+
+// Setup callbacks for SerialCommand commands
+  SerialCommand cmd_action_("w", cmd_action);
+
 /* ---------------------------------------------------------------------------*/
 
 /*
@@ -84,26 +169,15 @@ const float turn_y0 = temp_b * sin(temp_alpha) - turn_y1 - length_side;
    ---------------------------------------------------------------------------*/
 void setup()
 {
-  //start serial for debug
-  Serial.begin(57600);
-  Serial.println("Robot starts initialization");
+  //start serial for debug and commands
+  //Bluetooth default baud is 9600
+  Serial1.begin(9600);
+  CmdSerial.println("Robot starts initialization");
   // config IR_Detect_IO pin as input
   pinMode(IR_Detect_IO, INPUT);
   
-  // RegisHsu, remote control
-  // Setup callbacks for SerialCommand commands
-  // action command 0-6,
-  // w 0 1: stand
-  // w 0 0: sit
-  // w 1 x: forward x step
-  // w 2 x: back x step
-  // w 3 x: right turn x step
-  // w 4 x: left turn x step
-  // w 5 x: hand shake x times
-  // w 6 x: hand wave x times
-  SCmd.addCommand("w", action_cmd);
-
-  SCmd.setDefaultHandler(unrecognized);
+  SCmd.SetDefaultHandler(cmd_unrecognized);
+  SCmd.AddCommand(&cmd_action_);
 
   //initialize default parameter
   set_site(0, x_default - x_offset, y_start + y_step, z_boot);
@@ -120,11 +194,11 @@ void setup()
   //start servo service
   FlexiTimer2::set(20, servo_service);
   FlexiTimer2::start();
-  Serial.println("Servo service started");
+  CmdSerial.println("Servo service started");
   //initialize servos
   servo_attach();
-  Serial.println("Servos initialized");
-  Serial.println("Robot initialization Complete");
+  CmdSerial.println("Servos initialized");
+  CmdSerial.println("Robot initialization Complete");
 }
 
 
@@ -160,7 +234,7 @@ void loop()
 {
   int tmp_turn, tmp_leg, tmp_body;
   //Regis, 2015-07-15, for Bluetooth command
-  SCmd.readSerial();
+  SCmd.ReadSerial();
   if (!digitalRead(IR_Detect_IO) && is_stand())
   {
     tmp_turn = spot_turn_speed;
@@ -189,108 +263,40 @@ void loop()
 
 void do_test(void)
 {
-  Serial.println("Stand");
+  CmdSerial.println("Stand");
   stand();
   delay(2000);
-  Serial.println("Step forward");
+  CmdSerial.println("Step forward");
   step_forward(5);
   delay(2000);
-  Serial.println("Step back");
+  CmdSerial.println("Step back");
   step_back(5);
   delay(2000);
-  Serial.println("Turn left");
+  CmdSerial.println("Turn left");
   turn_left(5);
   delay(2000);
-  Serial.println("Turn right");
+  CmdSerial.println("Turn right");
   turn_right(5);
   delay(2000);
-  Serial.println("Hand wave");
+  CmdSerial.println("Hand wave");
   hand_wave(3);
   delay(2000);
-  Serial.println("Hand wave");
+  CmdSerial.println("Hand wave");
   hand_shake(3);
   delay(2000);
-  Serial.println("Sit");
+  CmdSerial.println("Sit");
   sit();
   delay(5000);
 }
 
-// RegisHsu
-// w 0 1: stand
-// w 0 0: sit
-// w 1 x: forward x step
-// w 2 x: back x step
-// w 3 x: right turn x step
-// w 4 x: left turn x step
-// w 5 x: hand shake x times
-// w 6 x: hand wave x times
-#define W_STAND_SIT    0
-#define W_FORWARD      1
-#define W_BACKWARD     2
-#define W_LEFT         3
-#define W_RIGHT        4
-#define W_SHAKE        5
-#define W_WAVE         6
-void action_cmd(void)
+
+
+//This is the default handler, and gets called when no other command matches. 
+void cmd_unrecognized(SerialCommands* sender, const char* cmd)
 {
-  char *arg;
-  int action_mode, n_step;
-  Serial.println("Action:");
-  arg = SCmd.next();
-  action_mode = atoi(arg);
-  arg = SCmd.next();
-  n_step = atoi(arg);
-
-  switch (action_mode)
-  {
-    case W_FORWARD:
-      Serial.println("Step forward");
-      if (!is_stand())
-        stand();
-      step_forward(n_step);
-      break;
-    case W_BACKWARD:
-      Serial.println("Step back");
-      if (!is_stand())
-        stand();
-      step_back(n_step);
-      break;
-    case W_LEFT:
-      Serial.println("Turn left");
-      if (!is_stand())
-        stand();
-      turn_left(n_step);
-      break;
-    case W_RIGHT:
-      Serial.println("Turn right");
-      if (!is_stand())
-        stand();
-      turn_right(n_step);
-      break;
-    case W_STAND_SIT:
-      Serial.println("1:up,0:dn");
-      if (n_step)
-        stand();
-      else
-        sit();
-      break;
-    case W_SHAKE:
-      Serial.println("Hand shake");
-      hand_shake(n_step);
-      break;
-    case W_WAVE:
-      Serial.println("Hand wave");
-      hand_wave(n_step);
-      break;
-    default:
-      Serial.println("Error");
-      break;
-  }
-}
-
-// This gets set as the default handler, and gets called when no other command matches.
-void unrecognized(const char *command) {
-  Serial.println("What?");
+  sender->GetSerial()->print("Unrecognized command [");
+  sender->GetSerial()->print(cmd);
+  sender->GetSerial()->println("]");
 }
 
 /*
