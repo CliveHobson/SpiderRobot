@@ -53,22 +53,28 @@ SerialCommands SCmd(&Serial1, serial_command_buffer_, sizeof(serial_command_buff
 //define 12 servos for 4 legs
 #if SERVO_VIA_PWM
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+const float PWM_FREQUENCY = 50;
+const uint16_t PWM_SERVO_MIN = 103;
+const uint16_t PWM_SERVO_MAX = 512;
 const int servo_address[4][3] = { {0, 1, 2}, {4, 5, 6}, {8, 9, 10}, {12, 13, 14} };
 #else
 Servo servo[4][3];
 //define servos' ports
 const int servo_pin[4][3] = { {2, 3, 4}, {5, 6, 7}, {8, 9, 10}, {11, 12, 13} };
 #endif
+
 /* Size of the robot ---------------------------------------------------------*/
 const float length_a = 55;
 const float length_b = 77.5;
 const float length_c = 27.5;
 const float length_side = 71;
 const float z_absolute = -28;
+
 /* Constants for movement ----------------------------------------------------*/
 const float z_default = -50, z_up = -30, z_boot = z_absolute;
 const float x_default = 62, x_offset = 0;
 const float y_start = 0, y_step = 40;
+
 /* variables for movement ----------------------------------------------------*/
 volatile float site_now[4][3];    //real-time coordinates of the end of each leg
 volatile float site_expect[4][3]; //expected coordinates of the end of each leg
@@ -84,6 +90,7 @@ volatile int rest_counter;      //+1/0.02s, for automatic rest
 const float KEEP = 255;
 //define PI for calculation
 const float pi = 3.1415926;
+
 /* Constants for turn --------------------------------------------------------*/
 //temp length
 const float temp_a = sqrt(pow(2 * x_default + length_side, 2) + pow(y_step, 2));
@@ -220,7 +227,7 @@ void servo_attach(void)
 {
 #if SERVO_VIA_PWM
   pwm.begin();
-  pwm.setPWMFreq(50);
+  pwm.setPWMFreq(PWM_FREQUENCY);
   Wire.setClock(400000);
 #else
   for (int i = 0; i < 4; i++)
@@ -876,7 +883,9 @@ void cartesian_to_polar(volatile float &alpha, volatile float &beta, volatile fl
 uint16_t polar_to_pwm(float angle)
 {
   // multiply by 10 to get better precision
-  return map(static_cast<uint16_t>(angle) * 10, 0, 1800, 103, 512);
+  return constrain(map(static_cast<uint16_t>(angle * 10.0), 0, 1800, PWM_SERVO_MIN, PWM_SERVO_MAX),
+                   PWM_SERVO_MIN,
+                   PWM_SERVO_MAX);
 }
 
 /*
