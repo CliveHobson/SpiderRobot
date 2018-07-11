@@ -230,11 +230,11 @@ void servo_attach(void)
   pwm.setPWMFreq(PWM_FREQUENCY);
   Wire.setClock(400000);
 #else
-  for (int i = 0; i < 4; i++)
+  for (int leg = 0; leg < 4; ++leg)
   {
-    for (int j = 0; j < 3; j++)
+    for (int joint = 0; joint < 3; ++joint)
     {
-      servo[i][j].attach(servo_pin[i][j]);
+      servo[leg][joint].attach(servo_pin[leg][joint]);
       delay(100);
     }
   }
@@ -889,6 +889,18 @@ uint16_t polar_to_pwm(float angle)
 }
 
 /*
+  - send the joint movement instruction to hardware
+   ---------------------------------------------------------------------------*/
+void drive_servo(int leg, int joint, float angle)
+{
+#if SERVO_VIA_PWM
+  pwm.setPWM(servo_address[leg][joint], 0, polar_to_pwm(angle));
+#else
+  servo[leg][joint].write(angle);
+#endif
+}
+
+/*
   - trans site from polar to microservos
   - mathematical model map to fact
   - the errors saved in eeprom will be add
@@ -920,13 +932,7 @@ void polar_to_servo(int leg, float alpha, float beta, float gamma)
     gamma += 90;
   }
 
-#if SERVO_VIA_PWM
-  pwm.setPWM(servo_address[leg][0], 0, polar_to_pwm(alpha));
-  pwm.setPWM(servo_address[leg][1], 0, polar_to_pwm(beta));
-  pwm.setPWM(servo_address[leg][2], 0, polar_to_pwm(gamma));
-#else
-  servo[leg][0].write(alpha);
-  servo[leg][1].write(beta);
-  servo[leg][2].write(gamma);
-#endif
+  drive_servo(leg, 0, alpha);
+  drive_servo(leg, 1, beta);
+  drive_servo(leg, 2, gamma);
 }
