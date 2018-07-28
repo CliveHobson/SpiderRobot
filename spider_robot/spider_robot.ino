@@ -105,8 +105,22 @@ const float turn_y1 = y_start + y_step / 2;
 const float turn_x0 = turn_x1 - temp_b * cos(temp_alpha);
 const float turn_y0 = temp_b * sin(temp_alpha) - turn_y1 - length_side;
 
-// pin-A0
-#define IR_Detect_IO 14
+/* Constants for obstacle detection with Infrared or Ultrasonic --------------*/
+// Select detection device
+enum class ObstacleDetectorKind : int
+{
+  None,
+  Infrared,
+  Ultrasonic
+};
+constexpr ObstacleDetectorKind OBSTACLE_DETECT_DEVICE = ObstacleDetectorKind::Ultrasonic;
+// Infrared I/O pin
+const int IR_Detect_IO = 14;
+// Ultrasonic Trigger / Echo pins
+const int Sonic_Detect_Trig = 14;
+const int Sonic_Detect_Echo = 15;
+// Ultrasonic distance in Centimetres
+const int Sonic_Detect_Range = 15;
 
 /*
   - callback for SerialCommand commands for Bluetooth module
@@ -198,8 +212,22 @@ void setup()
   //Bluetooth default baud is 9600
   Serial1.begin(9600);
   CmdSerial.println("Robot starts initialization");
-  // config IR_Detect_IO pin as input
-  pinMode(IR_Detect_IO, INPUT);
+
+  // Initialise Detection Device
+  switch (OBSTACLE_DETECT_DEVICE)
+  {
+    case ObstacleDetectorKind::None:
+      break;
+    case ObstacleDetectorKind::Infrared:
+      // config IR_Detect_IO pin as input
+      pinMode(IR_Detect_IO, INPUT);
+      break;
+    case ObstacleDetectorKind::Ultrasonic:
+      // config Ultrasonic pins
+      pinMode(Sonic_Detect_Trig, OUTPUT);
+      pinMode(Sonic_Detect_Echo, INPUT);
+      break;
+  }
 
   SCmd.SetDefaultHandler(cmd_unrecognized);
   SCmd.AddCommand(&cmd_action_);
@@ -267,14 +295,47 @@ int flag_obstacle = 0;
 int mode_left_right = 0;
 void loop()
 {
-  int tmp_turn, tmp_leg, tmp_body;
   // SerialCommands read for Bluetooth module
   SCmd.ReadSerial();
-  if (!digitalRead(IR_Detect_IO) && is_stand())
+
+  bool Obstacle = false;
+  switch (OBSTACLE_DETECT_DEVICE)
   {
-    tmp_turn = spot_turn_speed;
-    tmp_leg = leg_move_speed;
-    tmp_body = body_move_speed;
+    case ObstacleDetectorKind::None:
+      break;
+    case ObstacleDetectorKind::Infrared:
+      Obstacle = !digitalRead(IR_Detect_IO);
+      break;
+    case ObstacleDetectorKind::Ultrasonic:
+      {
+        // The sensor is triggered by a HIGH pulse of 10 or more microseconds.
+        // Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
+        digitalWrite(Sonic_Detect_Trig, LOW);
+        delayMicroseconds(5);
+        digitalWrite(Sonic_Detect_Trig, HIGH);
+        delayMicroseconds(10);
+        digitalWrite(Sonic_Detect_Trig, LOW);
+
+        // Read the signal from the sensor: a HIGH pulse whose
+        // duration is the time (in microseconds) from the sending
+        // of the ping to the reception of its echo off of an object.
+        pinMode(Sonic_Detect_Echo, INPUT);
+        long duration = pulseIn(Sonic_Detect_Echo, HIGH);
+
+        // convert the time into a distance [centimetres]
+        long dist = (duration / 2) / 29.1;
+
+        // zero means nothing was detected
+        Obstacle = dist > 0 && dist <= Sonic_Detect_Range;
+      }
+      break;
+  }
+
+  if (Obstacle && is_stand())
+  {
+    int tmp_turn = spot_turn_speed;
+    int tmp_leg = leg_move_speed;
+    int tmp_body = body_move_speed;
     spot_turn_speed = leg_move_speed = body_move_speed = 20;
     if (flag_obstacle < 3)
     {
