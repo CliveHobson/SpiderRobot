@@ -124,78 +124,92 @@ const int Sonic_Detect_Range = 15;
 
 /*
   - callback for SerialCommand commands for Bluetooth module
-     w 0 1: stand
-     w 0 0: sit
      w 1 x: forward x step
      w 2 x: back x step
      w 3 x: right turn x step
      w 4 x: left turn x step
      w 5 x: hand shake x times
      w 6 x: hand wave x times
+     w 8 x: run test sequence (x is ignored for now)
+     w 9 1: stand
+     w 9 0: sit
    ---------------------------------------------------------------------------*/
-#define W_STAND_SIT    0
-#define W_FORWARD      1
-#define W_BACKWARD     2
-#define W_LEFT         3
-#define W_RIGHT        4
-#define W_SHAKE        5
-#define W_WAVE         6
+enum class CommandAction : int
+{
+  Forward = 1,
+  Backward = 2,
+  Left = 3,
+  Right = 4,
+  Shake = 5,
+  Wave = 6,
+  Test = 8,
+  StandSit = 9
+};
 void cmd_action(SerialCommands* sender)
 {
   char *arg;
-  int action_mode, n_step;
   arg = sender->Next();
-  action_mode = atoi(arg);
+  int action_mode = atoi(arg); // cannot report errors (gives zero on non-numeric text)
   arg = sender->Next();
-  n_step = atoi(arg);
+  int n_step = atoi(arg); // cannot report errors (gives zero on non-numeric text)
 
   sender->GetSerial()->println("Action:");
 
-  switch (action_mode)
+  switch (static_cast<CommandAction>(action_mode))
   {
-    case W_FORWARD:
+    case CommandAction::Forward:
       sender->GetSerial()->println("Step forward");
       if (!is_stand())
         stand();
       step_forward(n_step);
       break;
-    case W_BACKWARD:
+    case CommandAction::Backward:
       sender->GetSerial()->println("Step back");
       if (!is_stand())
         stand();
       step_back(n_step);
       break;
-    case W_LEFT:
+    case CommandAction::Left:
       sender->GetSerial()->println("Turn left");
       if (!is_stand())
         stand();
       turn_left(n_step);
       break;
-    case W_RIGHT:
+    case CommandAction::Right:
       sender->GetSerial()->println("Turn right");
       if (!is_stand())
         stand();
       turn_right(n_step);
       break;
-    case W_STAND_SIT:
-      sender->GetSerial()->println("1:up,0:dn");
-      if (n_step)
-        stand();
-      else
-        sit();
-      break;
-    case W_SHAKE:
+    case CommandAction::Shake:
       sender->GetSerial()->println("Hand shake");
       hand_shake(n_step);
       break;
-    case W_WAVE:
+    case CommandAction::Wave:
       sender->GetSerial()->println("Hand wave");
       hand_wave(n_step);
+      break;
+    case CommandAction::Test:
+      sender->GetSerial()->println("Test");
+      do_test();
+      break;
+    case CommandAction::StandSit:
+      if (n_step)
+      {
+        sender->GetSerial()->println("Stand");
+        stand();
+      }
+      else
+      {
+        sender->GetSerial()->println("Sit");
+        sit();
+      }
       break;
     default:
       sender->GetSerial()->println("Error");
       break;
   }
+  sender->GetSerial()->println("..done.");
 }
 
 /*
@@ -377,7 +391,7 @@ void do_test(void)
   CmdSerial.println("Hand wave");
   hand_wave(3);
   delay(2000);
-  CmdSerial.println("Hand wave");
+  CmdSerial.println("Hand shake");
   hand_shake(3);
   delay(2000);
   CmdSerial.println("Sit");
