@@ -8,11 +8,10 @@
     This version of the robot has 4 legs, and each leg is driven by 3 servos.
   This robot is driven by a Ardunio Nano Board with an expansion Board.
   We recommend that you view the product documentation before using.
-  - Request
   - This project requires some library files, which you can find in the head of
     this file. Make sure you have installed these files.
   - How to
-  - Before use,you must to adjust the robot,in order to make it more accurate.
+  - Before use, you must to adjust the robot, in order to make it more accurate.
     - Adjustment operation
     1.uncomment ADJUST, make and run
     2.comment ADJUST, uncomment VERIFY
@@ -21,18 +20,20 @@
   The document describes in detail how to operate.
    ---------------------------------------------------------------------------*/
 
-// modified by Regis for spider project, 2015-09-26
-// add remote control by HC-06 bluetooth module
-//
-// Use SerialCommands instead of SerialCommand.
-//   Allows easy selection of serial port for bluetooth module.
-//   SerialCommands is available from Arduino library.
-//   Ebony 2018-07-05
-//
-// Use PWM module to control servos instead of discrete pins.
-//   Use Adafruit_PWMServoDriver module and PWM hardware (PCA9685) to control
-//   servos instead of Servo module and discrete pins.
-//   CliveHobson 2018-07-02
+/* -----------------------------------------------------------------------------
+  Add remote control by HC-06 bluetooth module
+    Regis for spider project, 2015-09-26
+
+  Use SerialCommands instead of SerialCommand.
+    Allows easy selection of serial port for bluetooth module.
+    SerialCommands is available from Arduino library.
+    Ebony 2018-07-05
+
+  Use PWM module to control servos instead of discrete pins.
+    Use Adafruit_PWMServoDriver module and PWM hardware (PCA9685) to control
+    servos instead of Servo module and discrete pins.
+    CliveHobson 2018-07-02
+   ---------------------------------------------------------------------------*/
 
 /* Includes ------------------------------------------------------------------*/
 #include <Wire.h>
@@ -40,7 +41,8 @@
 
 #include <Servo.h>    //to define and control servos
 #include <FlexiTimer2.h>//to set a timer to manage all servos
-// RegisHsu, remote control
+
+/* remote control ------------------------------------------------------------*/
 #include <SerialCommands.h>
 
 /* Serial Commands------------------------------------------------------------*/
@@ -120,15 +122,17 @@ const int Sonic_Detect_Echo = 15;
 // Ultrasonic distance in Centimetres
 const int Sonic_Detect_Range = 15;
 
-// RegisHsu, remote control
-// w 0 1: stand
-// w 0 0: sit
-// w 1 x: forward x step
-// w 2 x: back x step
-// w 3 x: right turn x step
-// w 4 x: left turn x step
-// w 5 x: hand shake x times
-// w 6 x: hand wave x times
+/*
+  - callback for SerialCommand commands for Bluetooth module
+     w 0 1: stand
+     w 0 0: sit
+     w 1 x: forward x step
+     w 2 x: back x step
+     w 3 x: right turn x step
+     w 4 x: left turn x step
+     w 5 x: hand shake x times
+     w 6 x: hand wave x times
+   ---------------------------------------------------------------------------*/
 #define W_STAND_SIT    0
 #define W_FORWARD      1
 #define W_BACKWARD     2
@@ -145,8 +149,8 @@ void cmd_action(SerialCommands* sender)
   arg = sender->Next();
   n_step = atoi(arg);
 
- sender->GetSerial()->println("Action:");
- 
+  sender->GetSerial()->println("Action:");
+
   switch (action_mode)
   {
     case W_FORWARD:
@@ -194,10 +198,10 @@ void cmd_action(SerialCommands* sender)
   }
 }
 
-// Setup callbacks for SerialCommand commands
-  SerialCommand cmd_action_("w", cmd_action);
-
-/* ---------------------------------------------------------------------------*/
+/*
+  - setup callback for SerialCommand commands for Bluetooth module
+   ---------------------------------------------------------------------------*/
+SerialCommand cmd_action_("w", cmd_action);
 
 /*
   - setup function
@@ -250,7 +254,6 @@ void setup()
   CmdSerial.println("Robot initialization Complete");
 }
 
-
 void servo_attach(void)
 {
 #if SERVO_VIA_PWM
@@ -284,6 +287,7 @@ void servo_detach(void)
   }
 #endif
 }
+
 /*
   - loop function
    ---------------------------------------------------------------------------*/
@@ -291,7 +295,7 @@ int flag_obstacle = 0;
 int mode_left_right = 0;
 void loop()
 {
-  //Regis, 2015-07-15, for Bluetooth command
+  // SerialCommands read for Bluetooth module
   SCmd.ReadSerial();
 
   bool Obstacle = false;
@@ -381,9 +385,10 @@ void do_test(void)
   delay(5000);
 }
 
-
-
-//This is the default handler, and gets called when no other command matches.
+/*
+  - default SerialCommands handler
+  - gets called when no other command matches
+   ---------------------------------------------------------------------------*/
 void cmd_unrecognized(SerialCommands* sender, const char* cmd)
 {
   sender->GetSerial()->print("Unrecognized command [");
@@ -393,6 +398,7 @@ void cmd_unrecognized(SerialCommands* sender, const char* cmd)
 
 /*
   - is_stand
+  - return true if standing
    ---------------------------------------------------------------------------*/
 bool is_stand(void)
 {
@@ -429,7 +435,6 @@ void stand(void)
   }
   wait_all_reach();
 }
-
 
 /*
   - spot turn to left
@@ -723,8 +728,11 @@ void step_back(unsigned int step)
   }
 }
 
-// add by RegisHsu
-
+/*
+  - body left
+  - blocking function
+  - parameter number of times to move body left
+   ---------------------------------------------------------------------------*/
 void body_left(int i)
 {
   set_site(0, site_now[0][0] + i, KEEP, KEEP);
@@ -734,6 +742,11 @@ void body_left(int i)
   wait_all_reach();
 }
 
+/*
+  - body right
+  - blocking function
+  - parameter number of times to move body right
+   ---------------------------------------------------------------------------*/
 void body_right(int i)
 {
   set_site(0, site_now[0][0] - i, KEEP, KEEP);
@@ -743,6 +756,11 @@ void body_right(int i)
   wait_all_reach();
 }
 
+/*
+  - hand wave
+  - blocking function
+  - parameter number of times to wave hand
+   ---------------------------------------------------------------------------*/
 void hand_wave(int i)
 {
   float x_tmp;
@@ -789,6 +807,11 @@ void hand_wave(int i)
   }
 }
 
+/*
+  - hand shake
+  - blocking function
+  - parameter number of times to shake hand
+   ---------------------------------------------------------------------------*/
 void hand_shake(int i)
 {
   float x_tmp;
@@ -835,13 +858,11 @@ void hand_shake(int i)
   }
 }
 
-
-
 /*
   - microservos service /timer interrupt function/50Hz
-  - when set site expected,this function move the end point to it in a straight line
-  - temp_speed[4][3] should be set before set expect site,it make sure the end point
-   move in a straight line,and decide move speed.
+  - when set site expected, this function moves the end point to it in a straight line
+  - temp_speed[4][3] should be set before set expect site, to make sure the end point
+   moves in a straight line, and decide the move speed.
    ---------------------------------------------------------------------------*/
 void servo_service(void)
 {
@@ -867,8 +888,8 @@ void servo_service(void)
 
 /*
   - set one of end points' expect site
-  - this founction will set temp_speed[4][3] at same time
-  - non - blocking function
+  - this function will set temp_speed[4][3] at the same time
+  - non blocking function
    ---------------------------------------------------------------------------*/
 void set_site(int leg, float x, float y, float z)
 {
@@ -896,7 +917,7 @@ void set_site(int leg, float x, float y, float z)
 }
 
 /*
-  - wait one of end points move to expect site
+  - wait until an end point moves to expected site
   - blocking function
    ---------------------------------------------------------------------------*/
 void wait_reach(int leg)
@@ -909,7 +930,7 @@ void wait_reach(int leg)
 }
 
 /*
-  - wait all of end points move to expect site
+  - wait until all end points move to expected site
   - blocking function
    ---------------------------------------------------------------------------*/
 void wait_all_reach(void)
