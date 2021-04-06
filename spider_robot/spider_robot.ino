@@ -212,10 +212,30 @@ void cmd_action(SerialCommands* sender)
   sender->GetSerial()->println("..done.");
 }
 
+void cmd_manual(SerialCommands* sender)
+{
+  char *arg;
+  arg = sender->Next();
+  int n_leg = atoi(arg); // Leg to command
+  arg = sender->Next();
+  int n_x = atoi(arg); // x
+  arg = sender->Next();
+  int n_y = atoi(arg); // y
+  arg = sender->Next();
+  int n_z = atoi(arg); // z
+  
+  sender->GetSerial()->println("Manual:");
+
+  set_site(n_leg, n_x, n_y, n_z);
+  
+  sender->GetSerial()->println("..done.");
+}
+
 /*
   - setup callback for SerialCommand commands for Bluetooth module
    ---------------------------------------------------------------------------*/
 SerialCommand cmd_action_("w", cmd_action);
+SerialCommand cmd_manual_("m", cmd_manual);
 
 /*
   - setup function
@@ -245,6 +265,7 @@ void setup()
 
   SCmd.SetDefaultHandler(cmd_unrecognized);
   SCmd.AddCommand(&cmd_action_);
+  SCmd.AddCommand(&cmd_manual_);
 
   //initialize default parameter
   set_site(0, x_default - x_offset, y_start + y_step, z_boot);
