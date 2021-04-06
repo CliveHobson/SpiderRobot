@@ -12,13 +12,13 @@
 #include <Servo.h>
 
 /* Servos --------------------------------------------------------------------*/
-#define SERVO_VIA_PWM 1
-// define 12 servos for 4 legs
-#if SERVO_VIA_PWM
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 const float PWM_FREQUENCY = 50;
 const uint16_t PWM_SERVO_MIN = 103;
 const uint16_t PWM_SERVO_MAX = 512;
+
+// define 12 servos for 4 legs
+#if SERVO_VIA_PWM
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 const int servo_address[4][3] = { {0, 1, 2}, {4, 5, 6}, {8, 9, 10}, {12, 13, 14} };
 #else
 Servo servo[4][3];
